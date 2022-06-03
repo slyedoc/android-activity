@@ -1,0 +1,39 @@
+[package]
+name = "ndk-glue-bevy"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+winit = "0.26"
+wgpu = "0.12.0"
+bevy = { git="https://github.com/bevyengine/bevy", default-features = false, features = ["bevy_winit", "render", "trace"] }
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+env_logger = "0.9"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger = "0.11.0"
+ndk-glue = "0.5"
+ndk-macro = "0.3"
+
+[patch.crates-io]
+#winit = { path="../../../winit" }
+#wgpu = { path="../../../wgpu/wgpu" }
+
+[patch."https://github.com/bevyengine/bevy"]
+bevy = { path="../../../bevy"  }
+#bevy = { git="https://github.com/rib/bevy", branch="android-enabling", default-features = false, features = ["bevy_winit", "render", "trace"] }
+
+[features]
+default = []
+desktop = []
+
+[lib]
+crate_type=["cdylib"]
+
+[[bin]]
+path="src/lib.rs"
+name="bevy-test"
+required-features = [ "desktop" ]
