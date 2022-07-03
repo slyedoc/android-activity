@@ -1,10 +1,7 @@
-This tests using the game_activity crate with egui, winit and wgpu.
+This tests using `GameActivity` with egui, winit and wgpu.
 
 This is based on a re-worked winit backend here:
-https://github.com/rib/winit/tree/agdk-game-activity
-
-and based on updated egui-winit and egui-wgpu crates here:
-https://github.com/rib/egui/tree/android-deferred-winit-wgpu
+https://github.com/rib/winit/tree/android-activity
 
 ```
 rustup target add aarch64-linux-android
