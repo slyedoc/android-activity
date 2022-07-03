@@ -1,7 +1,7 @@
-This is a minimal test application that just runs a mainloop based
-on game_activity::poll_events() and traces the events received
-without doing any rendering. It also saves and restores some
-minimal application state.
+This is a minimal test application based on `GameActivity` that just
+runs a mainloop based on android_activity::poll_events() and traces
+the events received without doing any rendering. It also saves and
+restores some minimal application state.
 
 
 ```
