@@ -1,11 +1,11 @@
 # Overview
 
 `android-activity` provides a "glue" layer for building native Rust
-applications on Android, supporting multiple `Activity` base classes that the
-application can choose. It's comparable to [`android_native_app_glue.c`][ndk_concepts]
+applications on Android, supporting multiple [`Activity`] base classes.
+It's comparable to [`android_native_app_glue.c`][ndk_concepts]
 for C/C++ applications.
 
-Currently the crate supports `NativeActivity` or [`GameActivity`] from the
+`android-activity` supports [`NativeActivity`] or [`GameActivity`] from the
 Android Game Development Kit and can be extended to support additional base
 classes.
 
@@ -14,6 +14,8 @@ your `Activity` class; run an `android_main()` function in a separate thread fro
 main thread and marshal events (such as lifecycle events and input events) between
 Java and your native thread.
 
+[`Activity`]: https://developer.android.com/reference/android/app/Activity
+[`NativeActivity`]: https://developer.android.com/reference/android/app/NativeActivity
 [ndk_concepts]: https://developer.android.com/ndk/guides/concepts#naa
 [`GameActivity`]: https://developer.android.com/games/agdk/integrate-game-activity
 
@@ -78,7 +80,7 @@ adb logcat example:V *:S
 # Game Activity
 
 Originally the aim was to enable support for building Rust applications based on the
-[GameActivity] based class provided by [Google's Android Game Development Kit][agdk]
+[GameActivity] class provided by [Google's Android Game Development Kit][agdk]
 which can also facilitate integration with additional AGDK libraries including:
 1. [Game Text Input](https://developer.android.com/games/agdk/add-support-for-text-input): a library
 to help fullscreen native applications utilize the Android soft keyboard.
@@ -113,10 +115,12 @@ repositories - this is because `NativeActivity` is included as part of the Andro
 
 ## Compatibility
 
-All `Activity` classes are supported via a common API that allows you to write
+All `Activity` classes are supported via a common API that enables you to write
 `Activity` subclass agnostic code wherever you don't depend on features that are
 specific to a particular subclass.
 
+For example, it makes it possible to have a [Winit backend](https://github.com/rib/winit/tree/agdk-game-activity)
+that supports Android applications running with different `Activity` classes.
 
 ## API Summary
 
@@ -125,6 +129,8 @@ specific to a particular subclass.
 The glue crates define a standard entrypoint ABI for your `cdylib` that looks like:
 
 ```rust
+use android_activity::AndroidApp;
+
 #[no_mangle]
 fn android_main(app: AndroidApp) {
     ...
@@ -148,10 +154,13 @@ For example, the `AndroidApp` API enables:
 2. Notifications of SurfaceView lifecycle events
 3. Access to input events
 4. Ability to save and restore state each time your process stops and starts
+5. Access application [`Configuration`] state
+6. internal/external/obb filesystem paths
 
 _Note: that some of the `AndroidApp` APIs (such as for polling events) are only
 deemed safe to use from the application's main thread_
 
+[`Configuration`]: https://developer.android.com/reference/android/content/res/Configuration
 
 ### Synchronized event callbacks
 
