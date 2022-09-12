@@ -26,6 +26,7 @@ use bitflags::bitflags;
 pub enum InputEvent {
     MotionEvent(MotionEvent),
     KeyEvent(KeyEvent),
+    TextEvent(crate::input::TextInputState),
 }
 
 /// An enum representing the source of an [`MotionEvent`] or [`KeyEvent`]

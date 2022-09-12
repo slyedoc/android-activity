@@ -47,7 +47,7 @@ mod game_activity;
 #[cfg(feature = "game-activity")]
 use game_activity as activity_impl;
 
-pub use activity_impl::input;
+pub mod input;
 
 mod config;
 pub use config::ConfigurationRef;
@@ -469,6 +469,16 @@ impl AndroidApp {
             .read()
             .unwrap()
             .hide_soft_input(hide_implicit_only);
+    }
+
+    /// Fetch the current input text state, as updated by any active IME.
+    pub fn text_input_state(&self) -> input::TextInputState {
+        self.inner.read().unwrap().text_input_state()
+    }
+
+    /// Forward the given input text `state` to any active IME.
+    pub fn set_text_input_state(&self, state: input::TextInputState) {
+        self.inner.read().unwrap().set_text_input_state(state);
     }
 
     /// Query and process all out-standing input event

@@ -21,6 +21,7 @@ use ndk::configuration::Configuration;
 use ndk::input_queue::InputQueue;
 use ndk::native_window::NativeWindow;
 
+use crate::input::{TextInputState, TextSpan};
 use crate::{util, AndroidApp, ConfigurationRef, MainEvent, PollEvent, Rect, WindowManagerFlags};
 
 mod ffi;
@@ -39,6 +40,7 @@ pub mod input {
     pub enum InputEvent {
         MotionEvent(self::MotionEvent),
         KeyEvent(self::KeyEvent),
+        TextEvent(crate::input::TextInputState),
     }
 }
 
@@ -405,6 +407,26 @@ impl AndroidAppInner {
         }
     }
 
+    // TODO: move into a trait
+    pub fn text_input_state(&self) -> TextInputState {
+        TextInputState {
+            text: String::new(),
+            selection: TextSpan {
+                start: None,
+                end: None,
+            },
+            compose_region: TextSpan {
+                start: None,
+                end: None,
+            },
+        }
+    }
+
+    // TODO: move into a trait
+    pub fn set_text_input_state(&self, _state: TextInputState) {
+        // NOP: Unsupported
+    }
+
     pub fn enable_motion_axis(&self, _axis: input::Axis) {
         // NOP - The InputQueue API doesn't let us optimize which axis values are read
     }
@@ -449,6 +471,7 @@ impl AndroidAppInner {
                 let ndk_event = match event {
                     input::InputEvent::MotionEvent(e) => ndk::event::InputEvent::MotionEvent(e),
                     input::InputEvent::KeyEvent(e) => ndk::event::InputEvent::KeyEvent(e),
+                    _ => unreachable!(),
                 };
 
                 // Always report events as 'handled'. This means we won't get

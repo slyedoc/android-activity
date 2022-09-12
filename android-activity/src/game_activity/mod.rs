@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::marker::PhantomData;
 use std::ops::Deref;
-use std::os::raw;
+use std::os::raw::{self, c_void};
 use std::os::unix::prelude::*;
 use std::ptr::NonNull;
 use std::sync::{Arc, RwLock};
@@ -28,6 +28,7 @@ use crate::{util, AndroidApp, ConfigurationRef, MainEvent, PollEvent, Rect, Wind
 mod ffi;
 
 pub mod input;
+use crate::input::{TextInputState, TextSpan};
 use input::{Axis, InputEvent, KeyEvent, MotionEvent};
 
 // The only time it's safe to update the android_app->savedState pointer is
@@ -346,6 +347,122 @@ impl AndroidAppInner {
         }
     }
 
+    unsafe extern "C" fn map_input_state_to_text_event_callback(
+        context: *mut c_void,
+        state: *const ffi::GameTextInputState,
+    ) {
+        // Java uses a modified UTF-8 format, which is a modified cesu8 format
+        let out_ptr: *mut TextInputState = context.cast();
+        let text_modified_utf8: *const u8 = (*state).text_UTF8.cast();
+        let text_modified_utf8 =
+            std::slice::from_raw_parts(text_modified_utf8, (*state).text_length as usize);
+        match cesu8::from_java_cesu8(&text_modified_utf8) {
+            Ok(str) => {
+                (*out_ptr).text = String::from(str);
+                (*out_ptr).selection = TextSpan {
+                    start: match (*state).selection.start {
+                        -1 => None,
+                        off => Some(off as usize),
+                    },
+                    end: match (*state).selection.end {
+                        -1 => None,
+                        off => Some(off as usize),
+                    },
+                };
+                (*out_ptr).compose_region = TextSpan {
+                    start: match (*state).composingRegion.start {
+                        -1 => None,
+                        off => Some(off as usize),
+                    },
+                    end: match (*state).composingRegion.end {
+                        -1 => None,
+                        off => Some(off as usize),
+                    },
+                };
+            }
+            Err(err) => {
+                log::error!("Invalid UTF8 text in TextEvent: {}", err);
+            }
+        }
+    }
+
+    // TODO: move into a trait
+    pub fn text_input_state(&self) -> TextInputState {
+        unsafe {
+            let activity = (*self.native_app.as_ptr()).activity;
+            let mut out_state = TextInputState {
+                text: String::new(),
+                selection: TextSpan {
+                    start: None,
+                    end: None,
+                },
+                compose_region: TextSpan {
+                    start: None,
+                    end: None,
+                },
+            };
+            let out_ptr = &mut out_state as *mut TextInputState;
+
+            // NEON WARNING:
+            //
+            // It's not clearly documented but the GameActivity API over the
+            // GameTextInput library directly exposes _modified_ UTF8 text
+            // from Java so we need to be careful to convert text to and
+            // from UTF8
+            //
+            // GameTextInput also uses a pre-allocated, fixed-sized buffer for the current
+            // text state but GameTextInput doesn't actually provide it's own thread
+            // safe API to safely access this state  so we have to cooperate with
+            // the GameActivity code that does locking when reading/writing the state
+            // (I.e. we can't just punch through to the GameTextInput layer from here).
+            //
+            // Overall this is all quite gnarly - and probably a good reminder of why
+            // we want to use Rust instead of C/C++.
+            ffi::GameActivity_getTextInputState(
+                activity,
+                Some(AndroidAppInner::map_input_state_to_text_event_callback),
+                out_ptr.cast(),
+            );
+
+            out_state
+        }
+    }
+
+    // TODO: move into a trait
+    pub fn set_text_input_state(&self, state: TextInputState) {
+        unsafe {
+            let activity = (*self.native_app.as_ptr()).activity;
+            let modified_utf8 = cesu8::to_java_cesu8(&state.text);
+            let text_length = modified_utf8.len() as i32;
+            let modified_utf8_bytes = modified_utf8.as_ptr();
+            let ffi_state = ffi::GameTextInputState {
+                text_UTF8: modified_utf8_bytes.cast(), // NB: may be signed or unsigned depending on target
+                text_length,
+                selection: ffi::GameTextInputSpan {
+                    start: match state.selection.start {
+                        Some(off) => off as i32,
+                        None => -1,
+                    },
+                    end: match state.selection.end {
+                        Some(off) => off as i32,
+                        None => -1,
+                    },
+                },
+                composingRegion: ffi::GameTextInputSpan {
+                    start: match state.compose_region.start {
+                        Some(off) => off as i32,
+                        None => -1,
+                    },
+                    end: match state.compose_region.end {
+                        Some(off) => off as i32,
+                        None => -1,
+                    },
+                },
+            };
+            ffi::GameActivity_setTextInputState(activity, &ffi_state as *const _);
+        }
+    }
+
     pub fn enable_motion_axis(&mut self, axis: Axis) {
         unsafe { ffi::GameActivityPointerAxes_enableAxis(axis as i32) }
     }
@@ -407,6 +524,15 @@ impl AndroidAppInner {
         }
         for motion_event in buf.motion_events_iter() {
             callback(&InputEvent::MotionEvent(motion_event));
+        }
+
+        unsafe {
+            let app_ptr = self.native_app.as_ptr();
+            if (*app_ptr).textInputState != 0 {
+                let state = self.text_input_state();
+                callback(&InputEvent::TextEvent(state));
+                (*app_ptr).textInputState = 0;
+            }
         }
     }
 
