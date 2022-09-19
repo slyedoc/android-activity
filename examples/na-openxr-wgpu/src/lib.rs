@@ -34,6 +34,23 @@ use wgpu_types as wgt;
 
 use openxr as xr;
 
+mod extras {
+    pub mod math {
+        pub mod vector3;
+    }
+}
+
+mod render {
+    pub mod camera;
+    pub mod geometry {
+        pub mod r#box;
+    }
+    pub(crate) mod light;
+    pub mod state;
+    pub(crate) mod texture;
+    pub(crate) mod vertex;
+}
+
 #[cfg(target_os = "android")]
 use android_activity::AndroidApp;
 struct Framebuffer {
@@ -774,10 +791,10 @@ impl App {
         let features = wgpu::Features::SPIRV_SHADER_PASSTHROUGH | wgt::Features::MULTIVIEW;
         let limits = wgt::Limits::default();
 
-        let xr_session = XrShell::new("OpenXR Wgpu", 1, vk_target_version, features, limits)?;
+        let xr_shell = XrShell::new("OpenXR Wgpu", 1, vk_target_version, features, limits)?;
 
         let vertex_shader = unsafe {
-            xr_session
+            xr_shell
                 .wgpu_device
                 .create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
                     label: None,
@@ -786,7 +803,7 @@ impl App {
                 })
         };
         let fragment_shader = unsafe {
-            xr_session
+            xr_shell
                 .wgpu_device
                 .create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
                     label: None,
@@ -798,7 +815,7 @@ impl App {
         };
 
         let pipeline_layout =
-            xr_session
+            xr_shell
                 .wgpu_device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: None,
@@ -807,7 +824,7 @@ impl App {
                 });
 
         let wgpu_render_pipeline =
-            xr_session
+            xr_shell
                 .wgpu_device
                 .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: None,
@@ -848,7 +865,7 @@ impl App {
 
         // Create an action set to encapsulate our actions
         let xr_action_set =
-            xr_session
+            xr_shell
                 .xr_instance
                 .create_action_set("input", "input pose information", 0)?;
 
@@ -860,22 +877,22 @@ impl App {
         // Bind our actions to input devices using the given profile
         // If you want to access inputs specific to a particular device you may specify a different
         // interaction profile
-        xr_session
+        xr_shell
             .xr_instance
             .suggest_interaction_profile_bindings(
-                xr_session
+                xr_shell
                     .xr_instance
                     .string_to_path("/interaction_profiles/khr/simple_controller")?,
                 &[
                     xr::Binding::new(
                         &xr_right_action,
-                        xr_session
+                        xr_shell
                             .xr_instance
                             .string_to_path("/user/hand/right/input/grip/pose")?,
                     ),
                     xr::Binding::new(
                         &xr_left_action,
-                        xr_session
+                        xr_shell
                             .xr_instance
                             .string_to_path("/user/hand/left/input/grip/pose")?,
                     ),
@@ -883,19 +900,19 @@ impl App {
             )?;
 
         // Attach the action set to the session
-        xr_session
+        xr_shell
             .xr_session
             .attach_action_sets(&[&xr_action_set])
             .unwrap();
 
         // Create an action space for each device we want to locate
         let xr_right_space = xr_right_action.create_space(
-            xr_session.xr_session.clone(),
+            xr_shell.xr_session.clone(),
             xr::Path::NULL,
             xr::Posef::IDENTITY,
         )?;
         let xr_left_space = xr_left_action.create_space(
-            xr_session.xr_session.clone(),
+            xr_shell.xr_session.clone(),
             xr::Path::NULL,
             xr::Posef::IDENTITY,
         )?;
@@ -903,12 +920,25 @@ impl App {
         // OpenXR uses a couple different types of reference frames for positioning content; we need
         // to choose one for displaying our content! STAGE would be relative to the center of your
         // guardian system's bounds, and LOCAL would be relative to your device's starting location.
-        let xr_stage = xr_session
+        let xr_stage = xr_shell
             .xr_session
             .create_reference_space(xr::ReferenceSpaceType::STAGE, xr::Posef::IDENTITY)?;
 
+        let vp_width = xr_shell.xr_swapchain.resolution.width;
+        let vp_height = xr_shell.xr_swapchain.resolution.width;
+        let mut camera = OrbitCamera::new(
+            2.0,
+            1.5,
+            1.25,
+            Vec3::new(0.0, 0.0, 0.0),
+            size.width as f32 / size.height as f32,
+        );
+        camera.bounds.min_distance = Some(1.1);
+
+        let mut camera_controller = CameraController::new(0.025, 0.6);
+
         Ok(Self {
-            xr_shell: xr_session,
+            xr_shell,
 
             xr_action_set,
             xr_left_action,
