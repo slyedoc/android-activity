@@ -12,6 +12,7 @@ exclude = [
     "examples/agdk-cpal",
     "examples/na-mainloop",
     "examples/na-winit-wgpu",
+    "examples/na-winit-glutin",
     "examples/na-subclass-jni",
     "examples/na-openxr-info",
     "examples/na-openxr-wgpu"

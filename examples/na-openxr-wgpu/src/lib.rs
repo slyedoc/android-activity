@@ -6,7 +6,8 @@
 //! and
 //! https://github.com/zarik5/openxrs/blob/wgpu-test/openxr/examples/vulkan.rs
 //! and code from `wgpu_hal::vulkan`
-//!
+//! and
+//! https://github.com/FrankenApps/wgpu_cube
 
 use std::{
     collections::HashSet,
