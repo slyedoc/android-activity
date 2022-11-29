@@ -162,9 +162,16 @@ impl App {
                 format: swapchain_format,
                 width: size.width,
                 height: size.height,
-                present_mode: wgpu::PresentMode::Mailbox,
-                //present_mode: wgpu::PresentMode::Fifo,
-                alpha_mode: wgpu::CompositeAlphaMode::Inherit,
+                present_mode: if cfg!(target_arch = "x86_64") {
+                    wgpu::PresentMode::Fifo
+                } else {
+                    wgpu::PresentMode::Mailbox
+                },                
+                alpha_mode: if cfg!(target_arch = "x86_64") {
+                    wgpu::CompositeAlphaMode::Opaque
+                } else {
+                    wgpu::CompositeAlphaMode::Inherit
+                },
             };
 
             log::info!("WGPU: Configuring surface swapchain: format = {swapchain_format:?}, size = {size:?}");
@@ -194,7 +201,14 @@ fn run(event_loop: EventLoop<()>) {
     log::info!("Running mainloop...");
 
     // doesn't need to be re-considered later
-    let instance = wgpu::Instance::new(wgpu::Backends::all());
+
+    let instance = wgpu::Instance::new(
+        if cfg!(target_arch = "x86_64") {
+            wgpu::Backends::GL
+        } else {
+            wgpu::Backends::all()
+        }
+    );
     //let instance = wgpu::Instance::new(wgpu::Backends::VULKAN);
     //let instance = wgpu::Instance::new(wgpu::Backends::GL);
 
